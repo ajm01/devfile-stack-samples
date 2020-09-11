@@ -34,7 +34,7 @@ demonstrate a sample use case.
 
 Navigate to the `Operators`->`OperatorHub` in the OpenShift console and in the `Developer Tools` category select the `Service Binding Operator` operator
 
-![Service Binding Operator as shown in OperatorHub](../../assets/operator-hub-sbo-screenshot.png)
+![Service Binding Operator as shown in OperatorHub](./assets/operator-hub-sbo-screenshot.png)
 
 Alternatively, you can perform the same task manually using the following command:
 
@@ -83,7 +83,7 @@ Follow the installations instructions for [Installing Crunchy PostgreSQL for Kub
 
 When you have completed the `Before You Begin` instructions, you may access your Openshift Console and install the Crunchy PostgreSQL Operator from the Operator Hub:
 
-![Service Binding Operator as shown in OperatorHub](../../assets/Crunchy.png)
+![Service Binding Operator as shown in OperatorHub](./assets/Crunchy.png)
 
 After the instalation completes via the Operator Hub, please follow the instructions in the `After You Install` section.
 
