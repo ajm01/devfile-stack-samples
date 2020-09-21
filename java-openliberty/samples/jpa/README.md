@@ -55,7 +55,7 @@ apiVersion: operators.coreos.com/v1
 kind: OperatorSource
 metadata:
   name: redhat-developer-operators
-  namespace: openshift-marketplace
+  namespace: OpenShift-marketplace
 spec:
   type: appregistry
   endpoint: https://quay.io/cnr
@@ -77,41 +77,56 @@ make install-service-binding-operator-master
 
 #### Install the DB operator
 
-Login to your Openshift terminal for all command line operations
+Login to your OpenShift terminal for all command line operations
 
 Follow the installations instructions for [Installing Crunchy PostgreSQL for Kubernetes](https://operatorhub.io/operator/postgresql)
 
-When you have completed the `Before You Begin` instructions, you may access your Openshift Console and install the Crunchy PostgreSQL Operator from the Operator Hub:
+When You are directed to review and update the pgo.yaml file, make to follwoing changes:
+#### Changes to pgo.yaml
+```
+-    StorageClass:  fast
++    StorageClass: rook-ceph-cephfs-internal
+```
+and
+```
+-    StorageClass:  rook-ceph-block
++    StorageClass:  rook-ceph-block-internal
+```
+
+When you have completed the `Before You Begin` instructions, you may access your OpenShift Console and install the Crunchy PostgreSQL Operator from the Operator Hub:
 
 ![Service Binding Operator as shown in OperatorHub](./assets/Crunchy.png)
 
 After the instalation completes via the Operator Hub, please follow the instructions in the `After You Install` section.
 
+Finally, update the scc
+#### OpenShift Security Context Constraints setup
+
+Refer to the following [OpenShift documentation](https://docs.openshift.com/container-platform/4.5/authentication/managing-security-context-constraints.html) to determine if any updates to Security Context Constraints need to be made on behalf of the pods that will be started by the PGO
+
+```shell
+oc adm policy add-scc-to-group privileged system:serviceaccounts:service-binding-demo
+```
+
 ### Application Developer
 
-#### Access your Openshift terminal and oc login to the Openshift Cluster
+#### Access your OpenShift terminal and oc login to the OpenShift Cluster
 
-#### Create a namespace called `service-binding-demo` from the pgo CLI
+#### Create a database cluster instance called `my-demo-db` 
+
 > What is the pgo CLI? The pgo cli is a terminal command line interface for the Crunchy PostgreSQL Operator - it allows you to create namespaces and database instances that will be managed by the Crunchy PostgreSQL Operator. Then pgo CLI was installed as part of the Crunchy PostgreSQL installation process that you followed earlier.
 
-The application and the DB needs a namespace to live in so let's create one for them using the pgo CLI:
+Use the pgo CLI to create a db cluster instance in the pgo namespace you created during the installation of the Operator. This instance will be a postgreSQL db managed by the Crunchy PostgreSQL Operator.
 
 ```shell
-pgo create namespace service-binding-demo
-```
-#### Create a database cluster instance called `my-demo-db` from the pgo CLI
-
-Use the pgo CLI to create a db cluster instance in the namespace you created in the previous command. This instance will be a postgreSQL db managed by the Crunchy PostgreSQL Operator.
-
-```shell
-pgo create cluster my-demo-db -n service-binding-demo
+pgo create cluster my-demo-db -n pgo
 ```
 
 #### Import the demo Java MicroService JPA application
 
 In this example we will use odo to manage a sample [Java MicroServices JPA application](https://github.com/OpenLiberty/application-stack-samples.git).
 
-From the Openshift terminal, create a project directory `my-sample-jpa-app`
+From the OpenShift terminal, create a project directory `my-sample-jpa-app`
 
 cd to that directory and choosed the namespace we created above for the application:
 
@@ -130,7 +145,7 @@ initialize project using odo
 ```shell
 > odo create java-openliberty mysboproj
 ```
-Create an openshift route to access the application
+Create an OpenShift route to access the application
 ```shell
 > odo url create --port 9080
 ```
@@ -140,7 +155,7 @@ Perform an initial odo push of the app to the cluster
 > odo push 
 ```
 
-The application is now deployed to the cluster - you can view the status of the cluster and the application test results by streaming the openshift logs to the terminal
+The application is now deployed to the cluster - you can view the status of the cluster and the application test results by streaming the OpenShift logs to the terminal
 
 ```shell
 > odo log
@@ -167,7 +182,7 @@ Notice the failing tests due to a missing database connection.
 
 ```
 
-You can also access the application via the openshift URL created ealier. To see the URL that was created, list it
+You can also access the application via the OpenShift URL created ealier. To see the URL that was created, list it
 ```shell
 > odo url list
 ```
@@ -175,8 +190,8 @@ You will see a fully formed URL that can be used in a web browser
 ```shell
 $ odo url list
 Found the following URLs for component myjfstesingapp
-NAME                    STATE      URL                                                                                   PORT     SECURE     KIND
-myjfstesingapp-9080     Pushed     http://myjfstesingapp-9080-myjfstesingapp-jfstesting.apps.slobbed.os.fyre.ibm.com     9080     false      route
+NAME     STATE      URL                                                 PORT     SECURE     KIND
+ep1      Pushed     http://ep1-jpa-pgo.apps.slobbed.os.fyre.ibm.com     9080     false      route
 ```
 
 Use URL to navigate to the CreatePerson.xhtml data entry page and enter requested data, clicking on the "Save" button when complete
@@ -188,39 +203,21 @@ Note that the entry of any data does not result in the data being displayed when
 
 Now, the only thing that remains is to connect the DB and the application. We will use odo to create a link to the Service Binding Operator and will manually configure the resulting Service Binding Request to 'magically' do the connection for us.
 
-Display the services available to odo:
-```shell
-> odo catalog list services
-```
-
-You will see an entry for the Service Binding Operator displayed:
-
-```shell
-> odo catalog list services
-Operators available in the cluster
-NAME                                    CRDs
-service-binding-operator.v0.1.1-352     ServiceBindingRequest
->
-```
-use odo to create an odo service for the Service Binding Operator by entering the previous result in the following format: `<NAME>/<CRDs>`
-```shell
-> odo service create service-binding-operator.v0.1.1-352/ServiceBindingRequest
-```
-push this service instance to the cluster
-```shell
-> odo push
-```
-List this service
+List the services available
 ```shell
 > odo service list
 NAME                                                                                       AGE
-ServiceBindingRequest/example-servicebindingrequest                                        168h18m3s
+Pgcluster/example                     1154h25m9s
+Pgcluster/my-demo-db                  2h30m33s
+Pgtask/backrest-backup-my-demo-db     2h28m8s
+Pgtask/my-demo-db-createcluster       2h30m33s
+Pgtask/my-demo-db-stanza-create       2h28m47s
 >
 ```
-Create a Service Binding Request between the application and the database using the Service Binding Operator service created in the previous step
+Create a Service Binding Request between the application and the database using the Pgcluster service for the DB
 
 ```shell
-> odo link ServiceBindingRequest/example-servicebindingrequest
+> odo link Pgcluster/my-demo-db
 ```
 
 push this link to the cluster
@@ -232,16 +229,16 @@ You have now created a Service Binding Request object in the namespace on behalf
 
 You can see this Service Binding Request via kubectl
 ```shell
-> kubectl get servicebindingrequest jpa-servicebindingrequest-example-servicebindingrequest
-NAME                                                      AGE
-jpa-servicebindingrequest-example-servicebindingrequest   3m12s
+>  kubectl get servicebindingrequest
+NAME                       AGE
+jpa-pgcluster-my-demo-db   36m
 >
 ```
-Or, alternatively, you can inspect the SBR via the Openshift console in Administrator view by navigating to Operators > Installed Operators > Service Binding Operator and clicking on the Service Binding Request tab. Select the Service Binding Request Instance named `mysboproj-servicebindingrequest-example-servicebindingrequest`
+Or, alternatively, you can inspect the SBR via the OpenShift console in Administrator view by navigating to Operators > Installed Operators > Service Binding Operator and clicking on the Service Binding Request tab. Select the Service Binding Request Instance named `jpa-pgcluster-my-demo-db`
 
 #### Manually configure YAML files
 
-Access the Openshift console and navigate to Administration > Custom Resource Definitions > Pgcluster and click on the 'Instances' tab
+Access the OpenShift console and navigate to Administration > Custom Resource Definitions > Pgcluster and click on the 'Instances' tab
 
 Click on your db cluster instance name 'my-demo-db'
 Edit the YAML and add the following annotations to the annotations block within the meta-data block
@@ -399,7 +396,7 @@ Click on the Service Binding Request you created in the previous section and edi
 
 We will edit the `backingServiceSelector` . This section is used to find the backing service - our operator-backed DB instance called `db-demo`.
 
-Replace the `backingServiceSelector` block with th efollowing YAML snippet:
+Replace the `backingServiceSelector` block with the following YAML snippet:
 ```yaml
   backingServiceSelectors:
     - group: crunchydata.com
@@ -456,15 +453,15 @@ status:
 
 Save and re-load this YAML file.
 
-You have now created an intermediate secret object called `mysboproj-servicebindingrequest-example-servicebindingrequest` in the cluster that can be used by your application. You can see this secret via kubectl
+You have now created an intermediate secret object called `jpa-pgcluster-my-demo-db` in the cluster that can be used by your application. You can see this secret via kubectl
 
 ```shell
-kubectl get secret mysboproj-servicebindingrequest-example-servicebindingrequest
-NAME                                                            TYPE     DATA   AGE
-mysboproj-servicebindingrequest-example-servicebindingrequest   Opaque   5      13m
+kubectl get secret jpa-pgcluster-my-demo-db
+NAME                       TYPE     DATA   AGE
+jpa-pgcluster-my-demo-db   Opaque   5      13m
 >
 ```
-Or, alternatively, you can inspect the new intermediate secret via the Openshift console in Administrator view by navigating to Workloads > Secrets and clicking on the secret named `mysboproj-servicebindingrequest-example-servicebindingrequest` Notice it contains 5 pieces of data all related to the connection information for your PostgreSQL database instance.
+Or, alternatively, you can inspect the new intermediate secret via the OpenShift console in Administrator view by navigating to Workloads > Secrets and clicking on the secret named `jpa-pgcluster-my-demo-db` Notice it contains 5 pieces of data all related to the connection information for your PostgreSQL database instance.
 
 Re-deploy the applications using odo
 ```shell
@@ -479,7 +476,7 @@ Notice you are re-directed to the PersonList.xhtml page, where your data is disp
 
 You may inspect the database instance itself and query the table to see the data in place by using the postgreSQL command line tool, psql.
 
-Navigate to the pod containing your db from the Openshift Console
+Navigate to the pod containing your db from the OpenShift Console
 
 Click on the terminal tab.
 
