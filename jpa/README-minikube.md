@@ -9,7 +9,9 @@ This scenario illustrates binding an odo managed Java MicroServices JPA applicat
 odo is a CLI tool for creating applications on OpenShift and Kubernetes. odo allows developers to concentrate on creating applications without the need to administer a cluster itself. Creating deployment configurations, build configurations, service routes and other OpenShift or Kubernetes elements are all automated by odo.
 
 ## Installation and Configuration of the minikube environment
-It is recommended to obtain a suitable system for running kubernetes minikube. In practice this should be a 4 core system. Before proceeding, please follow the instructions for establishing a minikube environment:
+<b>Please Note:</b> The guide only works with minikube configured with kubernetes 1.19.x or lower. odo link cannot link services successfully in a Kubernetes 1.20.x or higher environment as of this writing.
+
+It is recommended tothat users of this guide obtain a suitable system for running minikube with kubernetes. In practice this should be a 4 core system minimum. Before proceeding to the sample application, please follow the instructions for establishing a minikube environment:
 
 ### Install and start docker 
 Please follow instructions [here](https://docs.docker.com/engine/install/) for your OS distribution.
@@ -17,12 +19,17 @@ Please follow instructions [here](https://docs.docker.com/engine/install/) for y
 ### Install and start and configure minikube
 
 #### <u>Install minikube</u>
-Follow instructions [here](https://minikube.sigs.k8s.io/docs/start/) for your operating system target.
+Follow minikube installation instructions [here](https://minikube.sigs.k8s.io/docs/start/) for your operating system target.
 
 #### <u>Start minikube</u>
 If running as root, minikube will complain that docker should not be run as root as a matter of practice and will abort start up. To proceed, minikube will need to be started in a manner which will override this protection:
 ```shell
-> minikube start --force --driver=docker
+> minikube start --force --driver=docker --kubernetes-version=v1.19.8
+```
+
+If you are a non-root user, start minikube as normal (will utilize docker by default):
+```shell
+> minikube start --kubernetes-version=v1.19.8
 ```
 
 #### <u>Configure minikube</u>
@@ -31,27 +38,62 @@ The application requires an ingress addon to allow for routes to be created easi
 ```shell
 > minikube addons enable ingress
 ```
-dashboard graphical UI config:<br>
- It is helpful to make use of the basic kubernetes dashboard UI to interact with the various kubernetes entities in a graphical way. Please refer to the directions [here](https://minikube.sigs.k8s.io/docs/handbook/dashboard/) for enabling and starting the dashboard. Please note, this requires the configuration of a desktop environment in order to make use of the dashboard.
+Note: It is possible that you may face the dockerhub pull rate limit if you do not have a pull secret for your personal free docker hub account in place. During ingress initialization two of the job pods used by ingress may fail to initialize due to pull rate limits. If this happens, and ingress fails to enable, you will have to add a secret for the pulls for the following service accounts:
 
- Global Pull Secret:<br>
- To bypass the pull limits put in place by docker, it is a good idea to create a global pull secret tied to your personal (free) docker account. In doing so, docker eases the pull limit that should prevent the suspension of pull requests coming from your current IP.
+- ingress-nginx-admission
+- ingress-nginx
 
- First, create a docker-registry secret configured for your docker account:
+to add a pull secret for these service accounts: <br>
+- switch to the kube-system context:
+```shell
+> kubectl config set-context --current --namespace=kube-system
+```
+- create a pull secret:
+```shell
+> kubectl create secret docker-registry regcred --docker-server=<your-registry-server> --docker-username=<your-name> --docker-password=<your-pword> --docker-email=<your-email>
+```
+~~~
+        where:
+          - <your-registry-server> is the DockerHub Registry FQDN. (https://index.docker.io/v1/)
+          - <your-name> is your Docker username.
+          - <your-pword> is your Docker password.
+          - <your-email> is your Docker email.
+~~~
+
+- add this new cred ('regcred' in the example above) to the default service account in minikube:
+```shell
+> kubectl patch serviceaccount ingress-nginx-admission -p '{"imagePullSecrets": [{"name": "regcred"}]}'
+> kubectl patch serviceaccount ingress-nginx -p '{"imagePullSecrets": [{"name": "regcred"}]}'
+```
+
+ Default Service Account Pull Secret patch:<br>
+ Much like the ingress service accounts, the default service account will need to be patched with a pull secret configured for your personal docker account. 
+
+ - switch to th edefault context:
+ ```shell
+ > kubectl config set-context --current --namespace=default
+```
+
+ - create the same docker-registry secret configured for your docker , now for the default minikube context:
  ```shell
  > kubectl create secret docker-registry regcred --docker-server=<your-registry-server> --docker-username=<your-name> --docker-password=<your-pword> --docker-email=<your-email>
  ```
 
-where
-- `<your-registry-server>` is the DockerHub Registry FQDN. (https://index.docker.io/v1/)
-- `<your-name>` is your Docker username.
-- `<your-pword>` is your Docker password.
-- `<your-email>` is your Docker email.
 
-Second, add this new cred ('regcred' in the example above) to the default service account in minikube:
+~~~
+        where:
+          - <your-registry-server> is the DockerHub Registry FQDN. (https://index.docker.io/v1/)
+          - <your-name> is your Docker username.
+          - <your-pword> is your Docker password.
+          - <your-email> is your Docker email.
+~~~
+
+- Add this new cred ('regcred' in the example above) to the default service account in minikube:
 ```shell
 > kubectl patch serviceaccount default -p '{"imagePullSecrets": [{"name": "regcred"}]}'
 ```
+Kubernetes Dashboard graphical UI config:<br>
+ It is helpful to make use of the basic kubernetes dashboard UI to interact with the various kubernetes entities in a graphical way. Please refer to the directions [here](https://minikube.sigs.k8s.io/docs/handbook/dashboard/) for enabling and starting the dashboard. Please note, this require the installation of and access to a desktop environment in order to make use of the dashboard. (GNOME + xrdb for example)
 
 ### Install odo
 Please follow odo installation instructions [here](https://odo.dev/docs/installing-odo/) for your OS distribution.
@@ -110,6 +152,19 @@ submit this yaml file to create the database:
 ```
 This action will create a database instance pod in the 'my-postgresql-operator-dev4devs-com' namespace. The application will be configured to use this database.
 
+Add Database connection annotations to the Database Custom Resource Definition:
+
+On the dashboard, Navigate to Custom Resource Definitions > Database panel
+Click on the "sampledatabase" link in the Objects sub window
+Click on the Edit YAML icon
+Add the following annotations block under the `annotations:` section within the metadata block in the YAML:
+
+    service.binding/db.name: 'path={.spec.databaseName}'
+    service.binding/db.password: 'path={.spec.databasePassword}'
+    service.binding/db.user: 'path={.spec.databaseUser}'
+
+Save the YAML
+
 [comment]: <> (Add the following annotation block to the metadata block in the YAML as a sub-entry:)
 
 [comment]: <> (```)
@@ -133,7 +188,7 @@ The sample application must be co-located in the same namespace as the PostgreSQ
 
 In this example we will use odo to manage a sample [Java MicroServices JPA application](https://github.com/OpenLiberty/application-stack-samples.git).
 
-From a system terminal, create a project directory `my-sample-jpa-app`
+From the Openshift terminal, create a project directory `my-sample-jpa-app`
 
 cd to that directory and git clone the sample app repo to this directory.
 ```shell
@@ -190,20 +245,31 @@ java.lang.NullPointerException
 [ERROR] Integration tests failed: There are test failures.
 ```
 
-You can also access the application via the openshift URL created ealier. To see the URL that was created, list it
+You can also access the application via an ingress URL that can be created via odo using an ingress route to access the application:
+```shell
+> odo url create --host $(minikube ip).nip.io
+```
+You must push this url to activate it:
+```shell
+> odo push
+```
+
+To see the URL that was created, list it
 ```shell
 > odo url list
 ```
 You will see a fully formed URL that can be used in a web browser
 ```shell
-[root@ajm01-inf jpa]# odo url list
+[root@pappuses1 jpa]# odo url list
 Found the following URLs for component mysboproj
-NAME     STATE      URL                                                                      PORT     SECURE     KIND
-ep1      Pushed     http://ep1-mysboproj-service-binding-demo.apps.ajm01.cp.fyre.ibm.com     9080     false      route
+NAME               STATE      URL                                           PORT     SECURE     KIND
+mysboproj-9080     Pushed     http://mysboproj-9080.192.168.49.2.nip.io     9080     false      ingress
+[root@pappuses1 jpa]# 
+
 ```
 
 Use URL to navigate to the CreatePerson.xhtml data entry page and enter requested data:
-'URL/CreatePerson.xhtml' and enter a user's name and age data via the form.
+URL/CreatePerson.xhtml' and enter a user's name and age data via the form.
 
 Click on the "Save" button when complete
 ![Create Person xhtml page](./assets/createPerson.jpg)
@@ -256,7 +322,7 @@ push this link to the cluster
 
 After the link has been created and pushed a secret will have been created containing the database connection data that the application requires.
 
-You can inspect the new intermediate secret via the Openshift console in Administrator view by navigating to Workloads > Secrets and clicking on the secret named `mysboproj-database-sampledatabase` Notice it contains 4 pieces of data all related to the connection information for your PostgreSQL database instance.
+You can inspect the new intermediate secret via the dashboard console in the 'my-postgresql-operator-dev4devs-com' namespace by navigating to Secrets and clicking on the secret named `mysboproj-database-sampledatabase` Notice it contains 4 pieces of data all related to the connection information for your PostgreSQL database instance.
 
 Push the newly created link. This will terminate the existing application pod and start a new application pod.
 ```shell
@@ -265,7 +331,7 @@ odo push
 Once the new pod has initialized you can see the secret database connection data as it is injected into the pod environment by executing the following:
 ```shell
 > odo exec -- bash -c 'export | grep DATABASE'
-declare -x DATABASE_CLUSTERIP="172.30.36.67"
+declare -x DATABASE_CLUSTERIP="10.106.182.173"
 declare -x DATABASE_DB_NAME="sampledb"
 declare -x DATABASE_DB_PASSWORD="samplepwd"
 declare -x DATABASE_DB_USER="sampleuser"
