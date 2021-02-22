@@ -120,11 +120,11 @@ demonstrate a sample use case.
 
 #### Install the Service Binding Operator
 
-Navigate to the dockerhub.io Service Binding Operator installation page [here](https://operatorhub.io/operator/service-binding-operator). Click on the install button and follow the directions for installing the Operator Lifecycle Manager service (OLM) and then the Service Binding Operator itself.
+Navigate to the OperatorHub.io Service Binding Operator installation page [here](https://operatorhub.io/operator/service-binding-operator). Click on the install button and follow the directions for installing the Operator Lifecycle Manager service (OLM) and then the Service Binding Operator itself.
 
 #### Install the DB operator
 
-Navigate to the dockerhub.io Dev4Devs PostgreSQL Operator installation page [here](https://operatorhub.io/operator/postgresql-operator-dev4devs-com). Click on the install button and follow the directions for installing the Dev4Devs PostgreSQL Operator. It is not required to install the OLM service here as it was installed in the previous step.
+Navigate to the OperatorHub.io Dev4Devs PostgreSQL Operator installation page [here](https://operatorhub.io/operator/postgresql-operator-dev4devs-com). Click on the install button and follow the directions for installing the Dev4Devs PostgreSQL Operator. It is not required to install the OLM service here as it was installed in the previous step.
 
 This Operator will be installed in the "my-postgresql-operator-dev4devs-com" namespace and will be usable from this namespace only.
 
