@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This scenario illustrates binding an odo managed Java MicroServices JPA application to an in-cluster operater managed PostgreSQL Database in the minikube environment.
+This scenario illustrates binding an odo managed Java MicroServices JPA application to an in-cluster Operater managed PostgreSQL Database in the minikube environment.
 
 ## What is odo?
 
@@ -95,6 +95,12 @@ to add a pull secret for these service accounts: <br>
 Kubernetes Dashboard graphical UI config:<br>
  It is helpful to make use of the basic kubernetes dashboard UI to interact with the various kubernetes entities in a graphical way. Please refer to the directions [here](https://minikube.sigs.k8s.io/docs/handbook/dashboard/) for enabling and starting the dashboard. Please note, this require the installation of and access to a desktop environment in order to make use of the dashboard. (GNOME + xrdb for example)
 
+Operator Lifecycle Manager (OLM) config:
+Enabling OLM on your minikube instance simplifies installation and upgrades of Operators available from [OperatorHub](https://operatorhub.io). Enable OLM with below command:
+```shell
+> minikube addons enable olm
+```
+
 ### Install odo
 Please follow odo installation instructions [here](https://odo.dev/docs/installing-odo/) for your OS distribution.
 
@@ -102,12 +108,12 @@ Please follow odo installation instructions [here](https://odo.dev/docs/installi
 
 In this example there are 2 roles:
 
-* Cluster Admin - Installs the operators to the cluster
+* Cluster Admin - Installs the Operators to the cluster
 * Application Developer - Imports a Java MicroServices JPA application, creates a DB instance, creates a request to bind the application and DB (to connect the DB and the application).
 
 ### Cluster Admin
 
-The cluster admin needs to install 2 operators into the cluster:
+The cluster admin needs to install 2 Operators into the cluster:
 
 * Service Binding Operator
 * A Backing Service Operator
@@ -120,81 +126,65 @@ demonstrate a sample use case.
 
 #### Install the Service Binding Operator
 
-Navigate to the dockerhub.io Service Binding Operator installation page [here](https://operatorhub.io/operator/service-binding-operator). Click on the install button and follow the directions for installing the Operator Lifecycle Manager service (OLM) and then the Service Binding Operator itself.
-
+Below `kubectl` command will make the Service Binding Operator available in all namespaces on your minikube:
+```shell
+> kubectl create -f https://operatorhub.io/install/service-binding-operator.yaml
+```
 #### Install the DB operator
 
-Navigate to the dockerhub.io Dev4Devs PostgreSQL Operator installation page [here](https://operatorhub.io/operator/postgresql-operator-dev4devs-com). Click on the install button and follow the directions for installing the Dev4Devs PostgreSQL Operator. It is not required to install the OLM service here as it was installed in the previous step.
+Below `kubectl` command will make the PostgreSQL Operator available in `my-postgresql-operator-dev4devs-com` namespace of your minikube cluster:
+```shell
+> kubectl create -f https://operatorhub.io/install/postgresql-operator-dev4devs-com.yaml
+```
 
-This Operator will be installed in the "my-postgresql-operator-dev4devs-com" namespace and will be usable from this namespace only.
+**NOTE**: This Operator will be installed in the "my-postgresql-operator-dev4devs-com" namespace and will be usable from this namespace only.
 
 #### <i>Create a database to be used by the sample application</i>
-The creation of a database requires the apply of an operator yaml file - clone the Dev4Devs PostgreSQL Operator repo to begin:
+Since the PostgreSQL Operator we installed in above step is available only in `my-postgresql-operator-dev4devs-com` namespace, let's first make sure that odo uses this namespace to perform any tasks:
 ```shell
-> git clone https://github.com/dev4devs-com/postgresql-operator.git
+> odo project set my-postgresql-operator-dev4devs-com
 ```
-Edit the deploy/crds/postgresql.dev4devs.com_v1alpha1_database_cr.yaml file and make the following updates:
 
+We can use the default configurations of the PostgreSQL Operator to start a Postgres database from it. But since our app uses few specific configuration values, lets make sure they are properly populated in the databse service we start.
+
+First, store the YAML of the service in a file:
+```shell
+> odo service create postgresql-operator.v0.1.1/Database --dry-run > db.yaml
 ```
-metadata:
+Now, in the `db.yaml` file, modify and add following values under `metadata:` section:
+```yaml
   name: sampledatabase
+  annotations:
+    service.binding/db.name: 'path={.spec.databaseName}'
+    service.binding/db.password: 'path={.spec.databasePassword}'
+    service.binding/db.user: 'path={.spec.databaseUser}'
 ```
-and
-```
+Above configuration ensures that when a database service is started using this file, appropriate annotations are added to it. Annotations help the Service Binding Operator in injecting those values into our application. Hence, above configuration will help Service Binding Operator inject the values for `databaseName`, `databasePassword` and `databaseUser` into our application.
+
+Also, modify the following values (these values already exist, we simply need to change them) under `spec:` section of the YAML file:
+```yaml
   databaseName: "sampledb"
   databasePassword: "samplepwd"
   databaseUser: "sampleuser"
 ```
 
-submit this yaml file to create the database:
+Now, using odo, create the database from above YAML file:
 ```shell
-> kubectl apply -f deploy/crds/postgresql.dev4devs.com_v1alpha1_database_cr.yaml -n my-postgresql-operator-dev4devs-com
+> odo service create --from-file db.yaml
 ```
-This action will create a database instance pod in the 'my-postgresql-operator-dev4devs-com' namespace. The application will be configured to use this database.
-
-Add Database connection annotations to the Database Custom Resource Definition:
-
-On the dashboard, Navigate to Custom Resource Definitions > Database panel
-Click on the "sampledatabase" link in the Objects sub window
-Click on the Edit YAML icon
-Add the following annotations block under the `annotations:` section within the metadata block in the YAML:
-
-    service.binding/db.name: 'path={.spec.databaseName}'
-    service.binding/db.password: 'path={.spec.databasePassword}'
-    service.binding/db.user: 'path={.spec.databaseUser}'
-
-Save the YAML
-
-[comment]: <> (Add the following annotation block to the metadata block in the YAML as a sub-entry:)
-
-[comment]: <> (```)
-[comment]: <> (  annotations:)
-[comment]: <> (    service.binding/db.name: 'path={.spec.databaseName}')
-[comment]: <> (service.binding/db.password: 'path={.spec.databasePassword}')
-[comment]: <> (    service.binding/db.user: 'path={.spec.databaseUser}')
-[comment]: <> (```)
-[comment]: <> (- Save the YAML)
-[comment]: <> (- Reload the YAML)
+This action will create a database instance pod in the `my-postgresql-operator-dev4devs-com` namespace. The application will be configured to use this database.
 
 ### Application Developer
-
-#### Ensure your kubernetes context is set to the PostgreSQL Operator namespace
-The sample application must be co-located in the same namespace as the PostgreSQL Operator and the database instance. Ensure the context is set to that namespace:
-```shell
-> kubectl config set-context --current --namespace=my-postgresql-operator-dev4devs-com
-```
 
 #### Import the demo Java MicroService JPA application
 
 In this example we will use odo to manage a sample [Java MicroServices JPA application](https://github.com/OpenLiberty/application-stack-samples.git).
 
-From the Openshift terminal, create a project directory `my-sample-jpa-app`
-
-cd to that directory and git clone the sample app repo to this directory.
+Clone the sample app repo to your system:
 ```shell
 > git clone https://github.com/OpenLiberty/application-stack-samples.git
 ```
-cd to the sample JPA app
+`cd` to the sample JPA app
 ```shell
 > cd ./application-stack-samples/jpa
 ```
@@ -287,7 +277,7 @@ Display the services available to odo: - You will see an entry for the PostgreSQ
 Operators available in the cluster
 NAME                                             CRDs
 postgresql-operator.v0.1.1                       Backup, Database
->
+
 ```
 
 [comment]: <> (This following block is commented out for now, it will not be included)
@@ -305,8 +295,6 @@ List the service associated with the database created via the PostgreSQL Operato
 > odo service list
 NAME                        AGE
 Database/sampledatabase     6m31s
-
->
 ```
 Create a Service Binding Request between the application and the database using the Service Binding Operator service created in the previous step
 `odo link` command: 
