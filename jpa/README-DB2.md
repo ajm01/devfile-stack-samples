@@ -67,18 +67,18 @@ spec:
 
 Click "Create" - this will add the IBM Operator Hub to the Operator Hub splash page.
 
-Navigate to the `Operators`->`OperatorHub` in the OpenShift console and select the IBM Operator Hub check box to include the IBM Operators for installations.
+Navigate to the `Operators`->`OperatorHub` in the OpenShift console and select the IBM Operator Catalog check box to include the IBM Operators for installations.
 
-![Service Binding Operator as shown in OperatorHub](./assets/IBMOpHub.JPG)
+![IBM Operator Catalog](./assets/IBMOpHub.jpg)
 
 Prepare the IBM DB2 Operator:
 Before we can deploy Db2, we need to generate our pull secret so the Db2 database service containers can be accessed by the cluster. You will need to use your IBM ID — if you do not have one you can apply here once you have done that and are logged on.
 
 Scroll down to software and click on the Container Software Library:
-![Service Binding Operator as shown in OperatorHub](./assets/pic8.JPG)
+![IBM DB2 Operator as shown in IBM Operator Catalog](./assets/softwarelib.jpg)
 
 Now copy your Entitlement key and save it somewhere safe:
-![Service Binding Operator as shown in OperatorHub](./assets/pic9.JPG)
+![Service Binding Operator as shown in OperatorHub](./assets/entitlementkey.jpg)
 
 After you have done this, go to your command line and use the entitlement key, your email ID/IBM ID and the name of the namespace (in this example, it is “db2-dev”).
 
@@ -113,7 +113,7 @@ Scroll down to software and click on the Container Software Library:
 
 Access your Openshift Console and install the IBM DB2 Operator from the Operator Hub:
 
-![IBM DB2 Operator as shown in OperatorHub](./assets/DB2Op.JPG)
+![IBM DB2 Operator as shown in OperatorHub](./assets/DB2Op.jpg)
 - NOTE: Install operator into the namespace created above
 
 Create a database via the IBM DB2 Database Operator:
@@ -126,7 +126,7 @@ Navigate to Operators > Installed Operators > IBM DB2 Operator
 - Click on the 'Create' button at bottom of page
 
 Add Database connection annotations to the Database Resource Definition:
-- Navigate to Operators > Installed Operators > PostgreSQL Operator by Dev4Ddevs.com
+- Navigate to Operators > Installed Operators > IBM DB2 Operator
 - Click on the "Database Database" tab
 - Click on the new database entry in the list
 - Click on the YAML tab
